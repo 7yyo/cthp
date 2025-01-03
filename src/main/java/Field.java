@@ -13,28 +13,28 @@ public class Field {
 
   public String parse() {
     String result = "";
-    String columnName;
-    if (StringUtils.isNullOrEmpty(this.getAlias())) {
-      columnName = this.getName();
-    } else {
-      columnName = this.getAlias();
-    }
+    String name = StringUtils.isNullOrEmpty(this.getAlias()) ? this.getName() : this.getAlias();
+    String type = this.getType();
+    int displaySize = this.getDisplaySize();
+    int scale = this.getScale();
+
     switch (this.getType()) {
       case "INT":
       case "DATE":
       case "DATETIME":
       case "TIME":
-        result = String.format("%s %s", columnName, this.getType());
+        result = String.format("%s %s", name, type);
         break;
       case "DECIMAL":
-        result =
-            String.format(
-                "%s %s(%s,%s)", columnName, this.getType(), this.getDisplaySize(), this.getScale());
+        result = String.format("%s %s(%s,%s)", name, type, displaySize, scale);
         break;
       case "CHAR":
       case "VARCHAR":
-        result = String.format("%s %s(%s)", columnName, this.getType(), this.getDisplaySize());
+        result = String.format("%s %s(%s)", name, type, displaySize);
         break;
+      default:
+        System.out.println("unknown type: " + type);
+        System.exit(0);
     }
     return result;
   }

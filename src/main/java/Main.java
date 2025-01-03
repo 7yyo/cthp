@@ -18,8 +18,8 @@ public class Main {
     String port = System.getProperty("p", "3306");
     String db = System.getProperty("db", "test");
 
-    Processor processor = new Processor(host, port, user, password, db, q);
-    processor.parse();
-    processor.print();
+    Processor p = new Processor(host, port, user, password, db, q);
+    p.parse();
+    p.run();
   }
 }
