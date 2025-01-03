@@ -14,9 +14,9 @@ public class Main {
     }
 
     String user = System.getProperty("u", "root");
-    String password = System.getProperty("pwd", "123456");
+    String password = System.getProperty("pwd", "");
     String host = System.getProperty("h", "127.0.0.1");
-    String port = System.getProperty("p", "3306");
+    String port = System.getProperty("p", "4000");
     String db = System.getProperty("db", "test");
 
     Processor p = new Processor(host, port, user, password, db, q);

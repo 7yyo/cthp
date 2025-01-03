@@ -2,15 +2,9 @@
 
 Provide CTAS capability to TiDB..
 
-# Usage
-
-```shell
-java -jar -Du='root' -Dpwd='' -Dh='127.0.0.1' -Dp='4000' -Ddb='test' -Dq='create table tmp as select id from t'
-```
-
 # Example
 
-## original
+## data source
 ```sql
 DROP TABLE customers;
 DROP TABLE orders;
@@ -81,6 +75,12 @@ FROM customers c
          LEFT JOIN
      order_items oi ON o.order_id = oi.order_id
 GROUP BY c.customer_id, c.customer_name, c.city, c.country;
+```
+
+## usage
+
+```shell
+java -jar -Du='root' -Dpwd='' -Dh='127.0.0.1' -Dp='4000' -Ddb='test' -Dq='create table t as select ... from ...'
 ```
 
 ## output
