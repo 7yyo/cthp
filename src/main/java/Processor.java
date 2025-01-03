@@ -1,8 +1,8 @@
+import com.github.vertical_blank.sqlformatter.SqlFormatter;
 import lombok.Data;
 import lombok.SneakyThrows;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
-import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
@@ -17,23 +17,24 @@ public class Processor {
 
   private CreateTable createTable;
   private String targetTable;
-  private String query;
-  private Connection connection;
   private List<Field> fields;
-  private String ddl;
+  private Connection conn;
+  private String query;
+  private String ctas1;
+  private String ctas2;
 
   @SneakyThrows
   public Processor(String host, String port, String user, String password, String db, String sql) {
     this.createTable = (CreateTable) CCJSqlParserUtil.parse(sql);
     String url = String.format("jdbc:mysql://%s:%s/%s", host, port, db);
-    this.connection = DriverManager.getConnection(url, user, password);
-    this.query = createTable.getSelect().toString() + " LIMIT 1";
+    this.conn = DriverManager.getConnection(url, user, password);
+    this.query = this.getCreateTable().getSelect().toString() + " LIMIT 1";
   }
 
   @SneakyThrows
   public void parse() {
 
-    Statement sm = connection.createStatement();
+    Statement sm = conn.createStatement();
     ResultSet rs = sm.executeQuery(query);
     ResultSetMetaData rsmd = rs.getMetaData();
     List<Field> fieldList = new ArrayList<>();
@@ -44,6 +45,7 @@ public class Processor {
       field.setDisplaySize(rsmd.getColumnDisplaySize(i));
       field.setScale(rsmd.getScale(i));
       field.setTable(rsmd.getTableName(i));
+      field.setIsNullable(rsmd.isNullable(i));
       fieldList.add(field);
     }
     rs.close();
@@ -77,33 +79,44 @@ public class Processor {
     }
 
     this.fields = fieldList;
-    this.printDDL();
   }
 
-  public void printDDL() {
-    StringBuilder ddl =
+  public void generateSQL() {
+    StringBuilder ctas1 =
         new StringBuilder("CREATE TABLE ").append(this.getTargetTable()).append(" (\n");
     List<Field> fieldList = this.getFields();
     for (int i = 0; i < fieldList.size(); i++) {
-      ddl.append(fieldList.get(i).parse());
+      ctas1.append(fieldList.get(i).parse());
       if (i < fieldList.size() - 1) {
-        ddl.append(",\n");
+        ctas1.append(",\n");
       }
     }
-    ddl.append("\n);");
-    System.out.println(ddl);
-    this.ddl = ddl.toString();
+    ctas1.append("\n);");
+    this.setCtas1(ctas1.toString());
+
+    StringBuilder ctas2 =
+        new StringBuilder("INSERT INTO ")
+            .append(this.getTargetTable())
+            .append(" ")
+            .append(this.getCreateTable().getSelect().toString());
+    this.setCtas2(ctas2.toString());
   }
 
   @SneakyThrows
   public void run() {
-    Statement sm = this.getConnection().createStatement();
-    sm.execute(this.getDdl());
-    String dml =
-        String.format(
-            "INSERT INTO %s  %s",
-            this.getTargetTable(), this.getCreateTable().getSelect().toString());
-    System.out.println(dml);
-    sm.execute(dml);
+    Statement sm = this.getConn().createStatement();
+
+    String c1 = SqlFormatter.format(this.getCtas1());
+    String c2 = SqlFormatter.format(this.getCtas2());
+
+    System.out.println("==========\n");
+    System.out.println(c1);
+    System.out.println("\n==========\n");
+    System.out.println(c2);
+    System.out.println("\n==========");
+    sm.execute(c1);
+    sm.execute(c2);
+    sm.close();
+    this.getConn().close();
   }
 }

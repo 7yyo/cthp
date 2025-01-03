@@ -1,90 +1,155 @@
-# CTHP
+# cthp
 
-Help `MySQL protocol` databases that don't support the `create table as select.. From` syntax to automatically generate table schema.
+Provide CTAS capability to TiDB..
 
+# Usage
 
-## Example 1
-### sql
-```sql
-create table tmp as 
-    select t1.*, t2.id t2_id, 'hello' word 
-    from t1 
-    left join t2 on t1.id = t2.id;
-
-mysql> desc t1;
-+-------+---------------+------+-----+---------+-------+
-| Field | Type          | Null | Key | Default | Extra |
-+-------+---------------+------+-----+---------+-------+
-| id    | int           | NO   | PRI | NULL    |       |
-| c1    | int           | YES  |     | NULL    |       |
-| c2    | varchar(11)   | YES  |     | NULL    |       |
-| c3    | date          | YES  |     | NULL    |       |
-| c4    | decimal(10,2) | YES  |     | NULL    |       |
-+-------+---------------+------+-----+---------+-------+
-5 rows in set (0.02 sec)
-
-mysql> desc t2;
-+-------+----------+------+-----+---------+-------+
-| Field | Type     | Null | Key | Default | Extra |
-+-------+----------+------+-----+---------+-------+
-| id    | int      | NO   | PRI | NULL    |       |
-| c1    | datetime | YES  |     | NULL    |       |
-+-------+----------+------+-----+---------+-------+
-2 rows in set (0.01 sec)
-
-CREATE TABLE tmp (
-                     id INT,
-                     c1 INT,
-                     c2 VARCHAR(11),
-                     c3 DATE,
-                     c4 DECIMAL(10,2),
-                     t2_id INT,
-                     word VARCHAR(5)
-);
+```shell
+java -jar -Du='root' -Dpwd='' -Dh='127.0.0.1' -Dp='4000' -Ddb='test' -Dq='create table tmp as select id from t'
 ```
 
-## Example 2
+# Example
+
+## original
 ```sql
-create table t01
-as
-select
-    basecurrency ,
-    exchrate ,
-    exchdate,
-    case when begin_exchdate is null then '1900-01-01' else date_add(exchdate, interval 1 day) end begin_exchdate,
-    ifnull(end_exchdate,'2030-01-01') end_exchdate
-from (
-         select basecurrency ,exchrate , exchdate
-              ,lag(exchdate )over(partition by basecurrency ,exchcurrency  order by exchdate ) begin_exchdate
-              ,lead(exchdate)over(partition by basecurrency ,exchcurrency  order by exchdate )  end_exchdate
-         from test.t
-         where exchcurrency ='CNY'
-     ) tmp;
+DROP TABLE customers;
+DROP TABLE orders;
+DROP TABLE products;
+DROP TABLE order_items;
 
-mysql> desc t;
-+-------------------+---------------+------+-----+---------+-------+
-| Field             | Type          | Null | Key | Default | Extra |
-+-------------------+---------------+------+-----+---------+-------+
-| exchdate          | date          | YES  | MUL | NULL    |       |
-| base              | decimal(12,0) | YES  |     | NULL    |       |
-| basecurrency      | varchar(3)    | YES  |     | NULL    |       |
-| exchcurrency      | varchar(3)    | YES  |     | NULL    |       |
-| exchrate          | decimal(10,4) | YES  |     | NULL    |       |
-| buyprice          | decimal(10,4) | YES  |     | NULL    |       |
-| saleprice         | decimal(10,4) | YES  |     | NULL    |       |
-| cashprice         | decimal(10,4) | YES  |     | NULL    |       |
-| flag              | varchar(2)    | YES  |     | NULL    |       |
-| validstatus       | varchar(1)    | YES  |     | NULL    |       |
-| inserttimeforhis  | varchar(25)   | YES  |     | NULL    |       |
-| operatetimeforhis | varchar(25)   | YES  |     | NULL    |       |
-+-------------------+---------------+------+-----+---------+-------+
-12 rows in set (0.04 sec)
-
-CREATE TABLE t01 (
-                     basecurrency VARCHAR(3),
-                     exchrate DECIMAL(10,4),
-                     exchdate DATE,
-                     begin_exchdate VARCHAR(10),
-                     end_exchdate VARCHAR(10)
+CREATE TABLE customers
+(
+    customer_id   INT PRIMARY KEY,
+    customer_name VARCHAR(100) NOT NULL,
+    city          VARCHAR(50),
+    country       VARCHAR(50)
 );
+
+CREATE TABLE orders
+(
+    order_id     INT PRIMARY KEY,
+    customer_id  INT,
+    order_date   DATE,
+    order_amount DECIMAL(10, 2),
+    FOREIGN KEY (customer_id) REFERENCES customers (customer_id)
+);
+
+CREATE TABLE products
+(
+    product_id   INT PRIMARY KEY,
+    product_name VARCHAR(100) NOT NULL,
+    category     VARCHAR(50)
+);
+
+CREATE TABLE order_items
+(
+    order_item_id INT PRIMARY KEY,
+    order_id      INT,
+    product_id    INT,
+    quantity      INT,
+    price         DECIMAL(10, 2),
+    FOREIGN KEY (order_id) REFERENCES orders (order_id),
+    FOREIGN KEY (product_id) REFERENCES products (product_id)
+);
+
+CREATE TABLE customer_order_summary AS
+SELECT c.customer_id,
+       c.customer_name,
+       c.city,
+       c.country,
+       COUNT(DISTINCT o.order_id) AS total_orders,
+       SUM(o.order_amount)        AS total_amount,
+       AVG(o.order_amount)        AS avg_order_amount,
+       MAX(o.order_date)          AS last_order_date,
+       (SELECT p.category
+        FROM order_items oi
+                 JOIN products p ON oi.product_id = p.product_id
+        WHERE oi.order_id IN (SELECT order_id
+                              FROM orders
+                              WHERE customer_id = c.customer_id)
+        GROUP BY p.category
+        ORDER BY SUM(oi.quantity) DESC
+        LIMIT 1)                  AS most_ordered_category,
+       SUM(oi.quantity)           AS total_quantity,
+       CASE
+           WHEN SUM(o.order_amount) > 10000 THEN 'High Value'
+           ELSE 'Regular'
+           END                    AS is_high_value
+FROM customers c
+         LEFT JOIN
+     orders o ON c.customer_id = o.customer_id
+         LEFT JOIN
+     order_items oi ON o.order_id = oi.order_id
+GROUP BY c.customer_id, c.customer_name, c.city, c.country;
+```
+
+## output
+```sql
+==========
+
+CREATE TABLE customer_order_summary (
+  customer_id INT NOT NULL,
+  customer_name VARCHAR(100) NOT NULL,
+  city VARCHAR(50) DEFAULT NULL,
+  country VARCHAR(50) DEFAULT NULL,
+  total_orders BIGINT NOT NULL,
+  total_amount DECIMAL(32, 2) DEFAULT NULL,
+  avg_order_amount DECIMAL(14, 6) DEFAULT NULL,
+  last_order_date DATE DEFAULT NULL,
+  most_ordered_category VARCHAR(50) DEFAULT NULL,
+  total_quantity DECIMAL(32, 0) DEFAULT NULL,
+  is_high_value VARCHAR(10) NOT NULL
+);
+
+==========
+
+INSERT INTO
+  customer_order_summary
+SELECT
+  c.customer_id,
+  c.customer_name,
+  c.city,
+  c.country,
+  COUNT(DISTINCT o.order_id) AS total_orders,
+  SUM(o.order_amount) AS total_amount,
+  AVG(o.order_amount) AS avg_order_amount,
+  MAX(o.order_date) AS last_order_date,
+  (
+    SELECT
+      p.category
+    FROM
+      order_items oi
+      JOIN products p ON oi.product_id = p.product_id
+    WHERE
+      oi.order_id IN (
+        SELECT
+          order_id
+        FROM
+          orders
+        WHERE
+          customer_id = c.customer_id
+      )
+    GROUP BY
+      p.category
+    ORDER BY
+      SUM(oi.quantity) DESC
+    LIMIT
+      1
+  ) AS most_ordered_category,
+  SUM(oi.quantity) AS total_quantity,
+  CASE
+    WHEN SUM(o.order_amount) > 10000 THEN 'High Value'
+    ELSE 'Regular'
+  END AS is_high_value
+FROM
+  customers c
+  LEFT JOIN orders o ON c.customer_id = o.customer_id
+  LEFT JOIN order_items oi ON o.order_id = oi.order_id
+GROUP BY
+  c.customer_id,
+  c.customer_name,
+  c.city,
+  c.country
+
+==========
 ```
