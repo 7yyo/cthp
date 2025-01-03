@@ -10,7 +10,21 @@ public class Main {
     String q =
         System.getProperty(
             "q",
-            "create table tmp as select t1.*, t2.id t2_id, 'hello' word from t1 left join t2 on t1.id = t2.id");
+            "create table t01\n"
+                + "as\n"
+                + "select\n"
+                + "    basecurrency ,\n"
+                + "    exchrate ,\n"
+                + "    exchdate,\n"
+                + "    case when begin_exchdate is null then '1900-01-01' else date_add(exchdate, interval 1 day) end begin_exchdate,\n"
+                + "    ifnull(end_exchdate,'2030-01-01') end_exchdate\n"
+                + "from (\n"
+                + "         select basecurrency ,exchrate , exchdate\n"
+                + "              ,lag(exchdate )over(partition by basecurrency ,exchcurrency  order by exchdate ) begin_exchdate\n"
+                + "              ,lead(exchdate)over(partition by basecurrency ,exchcurrency  order by exchdate )  end_exchdate\n"
+                + "         from test.prpdexch\n"
+                + "         where exchcurrency ='CNY'\n"
+                + "     ) tmp;");
 
     String user = System.getProperty("u", "root");
     String password = System.getProperty("p", "123456");
