@@ -34,17 +34,6 @@ public class Main {
 
     Processor processor = new Processor(host, port, user, password, db, q);
     processor.parse();
-
-    StringBuilder ddl = new StringBuilder("CREATE TABLE " + processor.getTargetTable() + " (\n");
-    List<Field> fieldList = processor.getFields();
-    for (int i = 0; i < processor.getFields().size(); i++) {
-      if (i < fieldList.size() - 1) {
-        ddl.append(fieldList.get(i).parse()).append(",\n");
-      } else {
-        ddl.append(fieldList.get(i).parse());
-      }
-    }
-    ddl.append("\n);");
-    System.out.println(ddl);
+    processor.print();
   }
 }

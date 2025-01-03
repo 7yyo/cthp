@@ -68,4 +68,18 @@ public class Processor {
     }
     this.fields = fieldList;
   }
+
+  public void print() {
+    StringBuilder ddl = new StringBuilder("CREATE TABLE " + this.getTargetTable() + " (\n");
+    List<Field> fieldList = this.getFields();
+    for (int i = 0; i < this.getFields().size(); i++) {
+      if (i < fieldList.size() - 1) {
+        ddl.append(fieldList.get(i).parse()).append(",\n");
+      } else {
+        ddl.append(fieldList.get(i).parse());
+      }
+    }
+    ddl.append("\n);");
+    System.out.println(ddl);
+  }
 }
